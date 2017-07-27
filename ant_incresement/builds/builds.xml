@@ -1,0 +1,31 @@
+<project name="ant_test"  default="checkout">
+
+	<!-- define the svn url and the local directory to be checked out -->
+
+	<property file="builds.properties" /> 
+
+	<path id="ant.classpath">		
+		<pathelement location="libs\svnant.jar"/>
+		<pathelement location="libs\svnClientAdapter.jar"/>
+		<pathelement location="libs\svnjavahl.jar"/>
+	</path>
+		    
+	<!-- define the svn task-->
+	<taskdef name="svn" classname="org.tigris.subversion.svnant.SvnTask" >
+		<classpath refid="ant.classpath"/>
+	</taskdef>
+	
+	<!-- prepare for the checking out:clean the directory  -->		
+    	<target name="prepare" 	description="Prepare the dirs for the task">
+	    <delete dir="${local.dir}" />
+    		<mkdir dir="${local.dir}" />
+   	 </target>
+
+	<!-- check out the scource from the svn -->
+   	<target name="checkout" depends="prepare">
+    		<svn javahl="true" username="yuanzhb" password="123456" >
+        		<checkout url="${svn.url}" destPath="${local.dir}" />
+        	</svn>
+    	</target>
+
+</project>

@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<project default="increment_war" basedir=".">
+	<property file="build.properties"></property>
+	
+	<property name="svn.url" value="${svn._url}"></property>
+	
+	<property name="bak.svn.url" value="${bak.svn._url}"></property>
+	
+	<property name="svn.username" value="${svn.username}"></property>
+	<property name="svn.password" value="${svn.pasword}"></property>
+	
+	<property name="webapp" value="${webapp.name}"></property>
+	<property name="webroot" value="${webapp.root}"></property>
+	
+	<property name="compare.path.file" value="${increment.file}"></property>
+	<property name="dest.path" location="dest/${webapp}"></property>
+	<property name="dist.path" location="dist/${webapp}"></property>
+	
+	<property name="increment.dest.path" location="increment_dest/${webapp}"></property>
+	<property name="increment.dist.path" location="increment_dist/${webapp}"/>
+	
+	<path id="svnant.classpath">
+		<fileset dir="${basedir}">
+			<include name="**/*.jar"/>
+			<include name="**/lib/*.jar"/>
+		</fileset>
+	</path>
+	
+	<path id="buildpath">
+		<fileset dir="${dest.path}">
+			<include name="**/lib/*.jar"/>
+		</fileset>
+	</path>
+	
+	<typedef resource="org/tigris/subversion/svnant/svnantlib.xml" classpathref="svnant.classpath"></typedef>
+	
+	<svnSetting id="svn.settings" javahl="false" svnkit="true" username="{svn.username}" 
+		password="{svn.password}" failonerror="true"/>
+	
+	<target name="init">
+		<echo message="${svn.username}"></echo>
+		<echo message="${svn.password}"></echo>
+		<echo message="${webapp}"></echo>
+		<echo message="${webroot}"></echo>
+		<echo message="${compare.path.file}"></echo>
+		
+		<delete dir="${dest.path}" failonerror="false" deleteonexit="true" excludes="**/lib"></delete>
+		<delete dir="${dist.path}" failonerror="false" deleteonexit="true" excludes="**/lib"></delete>
+		
+		<delete file="${compare.path.file}" failonerror="false"></delete>
+		<delete file="${increment.dest.file}" failonerror="false" deleteonexit="true"></delete>
+		<delete file="${increment.dist.file}" failonerror="false" deleteonexit="true"></delete>
+		
+	</target>
+	
+	<!--测试svn-->
+	<target name="tool-available" depends="init">
+		<echo message="run task test svnant is available"></echo>
+		<available resource="org/tigris/subversion/svnant/svnantlib.xml" classpathref="svnant.classpath" property="available.svnant"></available>
+		<echo message="SVN-ANT is available = ${available.svnant}"></echo>
+	</target>
+	
+	<!--比较不同 -->
+	<target name="diff">
+		<svn refid="svn.settings">
+			<diffSummarize oldUrl="${bak.svn.url}" nweUrl="${svn.url}" outFile="${compare.path.file}" recurse="true"/>
+		</svn>
+	</target>
+	
+	<!-- 检出更新的代码-->
+	<target name="checkout" depends="tool-available">
+		<echo message="checkout/export project ${svn.url}"></echo>
+		<svn refid="svn.settings">
+			<export srcUrl="${svn.url}" destPath="${dest.path}" revision="HEAD" force="true"/>
+		</svn>
+	</target>
+	
+	<!--编译-->
+	<target name="compile">
+		<buildnumber/>
+		<echo>compile ${dest.path}....</echo>
+		<delete dir="${dist.path}" failonerror="false" deleteonexit="true" excludes="**/lib"></delete>
+		<mkdir dir="${dist.path}/classes"/>
+		<javac nowarn="true" debug="${javac.debug}" debuglevel="${javac.debuglevel}" destdir="${dist.path}/classes" source="${javac.source}" target="${javac.target}" 
+			encoding="utf-8" fork="true" memoryMaximumSize="512m" includeantruntime="false">
+		
+			<src path="${dest.path}/src"></src>
+			<classpath refid="buildpath"></classpath>
+			<classpath refid="svnant.classpath"></classpath>		
+		</javac>
+	</target>
+	
+	<!--jdt编译-->
+	<target name="compile_jdt">
+		<buildnumber/>
+		<echo> compile jdt ${dest_path}.....</echo>
+		<delete dir="${dist_path}" failonerror="false" deleteonexit="true" excludes="**/lib"></delete>
+		<mkdir dir="${dist_path}/classes"/>
+		<javac compiler="org.eclipse.jdt.core.JDTCompilerAdapter" nowarn="true" debug="${javac.debug}" debuglevel="${javac.debuglevel}" destdir="${dist_path}/classes" source="${javac.source}" target="${javac.target}" 
+			encoding="utf-8" fork="true" memoryMaximumSize="512m" includeantruntime="false">
+		
+			<src path="${dest_path}/src"></src>
+			<classpath refid="buildpath"></classpath>
+			<classpath refid="svnant.classpath"></classpath>
+		</javac>
+	</target>
+	
+	<!--jdt编译最新svn-->
+	<target name="compile_svn">
+		<antcall target="compile_jdt">
+			<param name="dest_path" value="${dest.path}"/>
+			<param name="dist_path" value="${dist.path}"/>
+		</antcall>
+	</target>
+	
+	<!--将全部项目的class 建立jar包-->
+	<target name="jar" depends="compile_svn">
+		<jar destfile="${basedir}/lib/${webapp}.jar" level="9" compress="true" 
+			encoding="utf-8" basedir="${dist.path}/classes">
+		
+			<manifest>
+				<attribute name="Implementation-Version" value="Version: 2.2"/>
+			</manifest>
+		</jar>
+	</target>
+	
+	<!--导出增量文件-->
+	<target name="increment" depends="diff">
+		<echo message="increment......"></echo>
+		<java classname="com.hoo.util.ExportIncrementFiles" classpath="${basedir}/lib/increment.export.jar"
+		fork="true">
+			<arg value="${compare.path.file}"/>
+			<arg value="${dest.path}"/>
+			<arg value="${increment.dest.path}"/>
+		</java>	
+	</target>
+	
+	<!--利用jdt编译增量文件-->
+	<target name="compile_increment">
+		<antcall target="compile_jdt">
+			<param name="dest_path" value="${increment.dest.path}"/>
+			<param name="dist_path" value="${increment.dist.path}"/>
+		</antcall>
+	</target>
+	
+	<target name="war">
+		<echo>create war file.....</echo>
+		<copy todir="${dist_path}" failonerror="false">
+			<fileset dir="${dest_path}/${webroot}" includes="**"></fileset>
+		</copy>
+		<move todir="${dist_path}/WEB-INF/classes" failonerror="false">
+			<fileset dir="${dist_path}/classes"></fileset>
+		</move>
+		<copy todir="${dist_path}/WEB-INF/classes" failonerror="false">
+            <fileset dir="${dest_path}/src/main/" includes="**/*.xml, **/*.properties, **/*.xsd"/>
+            <fileset dir="${dest_path}/src/test/" includes="**/*.xml, **/*.properties, **/*.xsd"/>
+            <fileset dir="${dest_path}/src/resource/" includes="**/*.xml, **/*.properties, **/*.xsd"/>
+        </copy>
+		
+		<!--获取当前日期-->
+		<tstamp>
+			<format property="DSTAMP" pattern="yyyyMMdd" locale="zh"/>
+			<format property="TSTAMP" pattern="HHmmss" locale="zh"/>
+		</tstamp>
+		
+		<war destfile="${basedir}/${webapp}_${DSTAMP}_${TSTAMP}.war" basedir="${dist_path}"
+			webxml="${dist_path}/WEB-INF/web.xml"></war>
+	</target>
+	
+	<target name="war_svn">
+		<antcall target="war">
+			<param name="dest_path" value="${dest.path}"/>
+			<param name="dist_path" value="${dist.path}"/>
+		</antcall>
+	</target>
+	
+	<target name="war_increment">
+		<copy todir="${increment.dist.path}/WEB-INF" file="${dest.path}/${webroot}/WEB-INF/web.xml"></copy>
+		<antcall target="war">
+			<param name="dest_path" value="${increment.dest.path}"/>
+			<param name="dist_path" value="${increment.dist.path}"/>
+		</antcall>
+	</target>
+	
+	<!--svn全量包-->
+	<target name="svn_war" depends="checkout, compile_svn, war_svn"></target>	
+	
+	<!--增量包-->
+	<target name="increment_war" depends="war_increment"></target>
+	
+</project>
